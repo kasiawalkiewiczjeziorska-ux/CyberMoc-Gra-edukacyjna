@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<title>CyberMoc – Gra Edukacyjna</title>
+<style>
+body{font-family:'Comic Sans MS';background:#f6e2ff;margin:0;padding:20px;}
+h1{text-align:center;font-size:44px;color:#7a00ff;text-shadow:3px 3px 0 #fff;}
+.btn{padding:12px 20px;border-radius:12px;font-weight:900;
+background:linear-gradient(180deg,#fff6d6,#ffd947);border:3px solid #fff;cursor:pointer;}
+.category{background:#fff;padding:15px;border-radius:12px;margin:10px 0;border:3px solid #7a00ff;}
+.qbtn{padding:10px;margin:4px 0;width:100%;border-radius:10px;font-weight:bold;background:#ffd34d;border:3px solid #fff;}
+.correct{background:#b9ffb9!important;}
+.wrong{background:#ffb9b9!important;}
+.effect{position:fixed;font-size:70px;font-weight:900;animation:pop .6s forwards;
+color:#ff009d;text-shadow:3px 3px 0 #fff;}
+@keyframes pop{0%{transform:scale(.2);opacity:0;}40%{transform:scale(1.3);opacity:1;}100%{transform:scale(.6);opacity:0;}}
+.card{background:#fff;padding:20px;border-radius:12px;margin:20px 0;border:4px solid #fff;}
+</style>
+</head>
+<body>
+
+<h1>CyberMoc – Gra Edukacyjna</h1>
+
+<button class="btn" id="musicToggle">Muzyka: OFF</button>
+
+<div class="card">
+<h2>Instrukcja</h2>
+<p>Zdobywaj punkty, odpowiadaj na pytania z 5 kategorii i pokonaj bota!</p>
+</div>
+
+<div id="board"></div>
+
+<div class="card">
+<h2>Pytanie</h2>
+<p id="qtext">Wybierz pytanie z planszy.</p>
+<div id="answers"></div>
+<button class="btn" id="nextBtn" style="display:none;">NEXT →</button>
+<p id="status"></p>
+</div>
+
+<script>
+const s_click=new Audio("sounds/click.wav");
+const s_correct=new Audio("sounds/correct.wav");
+const s_wrong=new Audio("sounds/wrong.wav");
+const s_win=new Audio("sounds/win.wav");
+const s_lose=new Audio("sounds/lose.wav");
+const bg=new Audio("sounds/bg_music.wav");
+bg.loop=true; bg.volume=.35;
+
+let music=false;
+document.getElementById("musicToggle").onclick=()=>{
+ if(!music){bg.play();music=true;musicToggle.textContent="Muzyka: ON";}
+ else{bg.pause();music=false;musicToggle.textContent="Muzyka: OFF";}
+};
+
+function effect(text){
+ const e=document.createElement("div");
+ e.className="effect";
+ e.textContent=text;
+ e.style.left=(window.innerWidth/2-80)+"px";
+ e.style.top="20%";
+ document.body.appendChild(e);
+ setTimeout(()=>e.remove(),700);
+}
+
+const categories=["Hasła","Dane","Zagrożenia","Zabezpieczenia","Tożsamość"];
+
+const qdata=[
+[
+ {id:1,p:100,q:"Co to jest silne hasło?",a:["Długie i złożone","Krótki PIN","Imię psa","123456"],c:0},
+ {id:2,p:200,q:"Co pomaga chronić hasło?",a:["MFA/2FA","Kalendarz","Pogoda","Laptop"],c:0},
+ {id:3,p:300,q:"Hasła zmieniamy…",a:["Regularnie","Nigdy","Co 10 lat","Kiedy pada"],c:0},
+ {id:4,p:400,q:"Hasło NIE powinno zawierać…",a:["Danych osobowych","Cyfr","Liter","Symboli"],c:0}
+],
+[
+ {id:1,p:100,q:"PESEL to…",a:["Dane wrażliwe","Nick","Avatar","Login"],c:0},
+ {id:2,p:200,q:"Danych nie udostępnia się…",a:["Publicznie","Rodzinie","W szkole","W domu"],c:0},
+ {id:3,p:300,q:"Dane chroni:",a:["Silne hasło","Tapeta","Kolor","Naklejka"],c:0},
+ {id:4,p:400,q:"RODO służy do…",a:["Ochrony danych","Reklam","Gier","Memów"],c:0}
+],
+[
+ {id:1,p:100,q:"Phishing to…",a:["Wyłudzanie danych","Gra","Słuchawki","Laptop"],c:0},
+ {id:2,p:200,q:"Nie klikaj gdy…",a:["Nie znasz nadawcy","To kolega","To sklep","To szkoła"],c:0},
+ {id:3,p:300,q:"Podejrzany link:",a:["Skrócony","Znany","Szkolny","Strona www"],c:0},
+ {id:4,p:400,q:"Wirus to…",a:["Zagrożenie","Gra","Naklejka","Zegar"],c:0}
+],
+[
+ {id:1,p:100,q:"Antywirus:",a:["Chroni","Szkodzi","Nic nie robi","Wycisza"],c:0},
+ {id:2,p:200,q:"Firewall:",a:["Blokuje ataki","Otwiera memy","Czyści biurko","Pokazuje pogodę"],c:0},
+ {id:3,p:300,q:"Backup:",a:["Kopia zapasowa","Folder","Email","Głośnik"],c:0},
+ {id:4,p:400,q:"VPN:",a:["Ukrywa dane","Koloruje","Chłodzi","Wysyła listy"],c:0}
+],
+[
+ {id:1,p:100,q:"Kradzież tożsamości to…",a:["Podszycie się","Tapeta","Nick","Emoji"],c:0},
+ {id:2,p:200,q:"Objawem jest…",a:["Logowanie z obcego miejsca","Tapeta","Kolor","Avatar"],c:0},
+ {id:3,p:300,q:"Kradną zwykle:",a:["PESEL i dane","Pogodę","Tapety","Nick"],c:0},
+ {id:4,p:400,q:"Gdy podejrzewasz:",a:["Zmiana haseł + zgłoszenie","Czekanie","Wyłączenie","Mem"],c:0}
+]
+];
+
+let questions=JSON.parse(JSON.stringify(qdata));
+let current=null;
+let player=0,bot=0;
+const TARGET=3200;
+
+function draw(){
+ const b=document.getElementById("board");
+ b.innerHTML="";
+ categories.forEach((ct,i)=>{
+  const box=document.createElement("div");
+  box.className="category";
+  box.innerHTML="<h3>"+ct+"</h3>";
+  questions[i].forEach(q=>{
+    const btn=document.createElement("button");
+    btn.className="qbtn";
+    btn.textContent=q.p+" pkt";
+    btn.onclick=()=>select(i,q.id);
+    box.appendChild(btn);
+  });
+  b.appendChild(box);
+ });
+}
+
+function select(ci,id){
+ const q=questions[ci].find(x=>x.id===id);
+ current={ci,q};
+ qtext.textContent=q.q;
+ answers.innerHTML="";
+ q.a.forEach((t,i)=>{
+  const b=document.createElement("button");
+  b.className="qbtn";
+  b.textContent=t;
+  b.onclick=()=>handle(i);
+  answers.appendChild(b);
+ });
+}
+
+function handle(choice){
+ const{ci,q}=current;
+ const ans=[...answers.querySelectorAll("button")];
+ ans.forEach(b=>b.disabled=true);
+
+ if(choice===q.c){
+  player+=q.p;
+  ans[choice].classList.add("correct");
+  s_correct.play(); effect("BOOM!");
+  status.textContent="Dobrze! +"+q.p;
+ }else{
+  bot+=q.p*2;
+  ans[choice].classList.add("wrong");
+  ans[q.c].classList.add("correct");
+  s_wrong.play(); effect("POW!");
+  status.textContent="Źle! Bot +"+(q.p*2);
+ }
+ document.getElementById("nextBtn").style.display="block";
+ questions[ci]=questions[ci].filter(x=>x.id!==q.id);
+}
+
+nextBtn.onclick=()=>{
+ answers.innerHTML="";
+ status.textContent="";
+ qtext.textContent="Wybierz pytanie.";
+ nextBtn.style.display="none";
+ draw();
+ check();
+};
+
+function check(){
+ if(player>=TARGET&&player>bot){s_win.play();alert("Wygrana!");}
+ if(bot>=TARGET){s_lose.play();alert("Przegrana!");}
+}
+
+draw();
+</script>
+</body>
+</html>
